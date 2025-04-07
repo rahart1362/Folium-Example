@@ -1,0 +1,2 @@
+sample_df = {'Lat': [38.9072, 40.7128, 34.0549], 'Long': ['77.0369', '74.006', '118.2426'], 'Bldg_Name': ['DC-Reagan', 'Times_Square', 'LAX'], 'Address': ['100 DC Road', '200 Times Square', '300 LAX Airport'], 'Staff_Count': ['5', '600', '7000'], 'Group1_Staff': ['2', '0', '0'], 'Group2_Staff': ['0', '1', '0'], 'Group3_Staff': ['25', '2', '0'], 'Ticket_Volume': ['100', '500', '3000'], 'Call_Volume': ['5000', '40', '200'], 'Region': ['Mid-Atlantic', 'Northeast', 'Southwest']}
+
