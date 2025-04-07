@@ -1,1 +1,16 @@
-
+I would like to create a modular script for deploying a Folium heatmap in Jupyter. I've provided a sample dataset in "Sample Data.txt" to give context to the data type I am using.  I want this to be easily scalable so that I can add additional requirements or FeatureGroups as I expand my dataset. I have the following requirements to also be met:
+1. The radius of the heatmap should correspond to the volume of the measure selected, similar to how the heatmap color is driven by the same measure.
+2. There should be a minimum of two functions utilized:
+2a. One function for defining the columns in the dataset to be utilized, featuregroups (for layer selection) that should be displayed to toggle the view, and assignment to global variables for use in subsequent functions
+2b. The second function should utilize the global variable/previously defined function to generate the folium heatmap and export the .html file for offline use, the intent is for this function to be static using the dynamic entries in Definition function (requirement 2a)
+3a. I would like the default view (featuregroup) to be heatmapped based on the "Lat" and "Long" columns, heat measure should use corresponding values in column "Staff_Count"
+3b. Create 2nd FeatureGroup "Ticket Volume" using the quantity value (column "Ticket_Volume") and corresponding "Lat" / "Long"
+3c. Create 3rd "Call Volume" as a FeatureGroup using the quantity value (column "Call_Volume") and corresponding "Lat" / "Long"
+4a. Add a pinpoint for each "Lat" / "Long" location, if "Internal_Staff" = 0 then make it a red pinpoint else make it a blue pinpoint.
+4b. When hovering over the pinpoint, it should provide a tooltip box of details using corresponding row values looking like:
+<strong>"Building Name: " [Bldg_Name]</strong><br>
+"Address: " [Address] <br>
+"Region: " [Region]<br>
+<strong>"Building Staffing: "</strong>[Staff Count]" | "[Internal Staff]<br>
+[Group1_Staff]" | "[Group2_Staff]
+5. Include detailed notes for each function describing how to add/remove items and what each command is doing. It is especially important to document clear notes for function 1 (requirement 2a) as that will be frequently revised with additional options and data featuregroups. In notes, provide  example of syntax arguments/options that could be added at a later time for enhanced views.
