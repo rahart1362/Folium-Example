@@ -1,1 +1,261 @@
+# Import necessary libraries
+import folium
+from folium.plugins import HeatMap
+import pandas as pd
+import numpy as np
 
+# Global variables to store configuration
+CONFIG = {}
+
+def define_heatmap_parameters(
+    df, 
+    lat_col='Lat', 
+    long_col='Long', 
+    measure_cols={
+        'Staff Count': 'Staff_Count',
+        'Ticket Volume': 'Ticket_Volume',
+        'Call Volume': 'Call_Volume'
+    },
+    default_measure='Staff Count',
+    marker_color_col='Internal_Staff',
+    tooltip_cols={
+        'Building Name': 'Bldg_Name',
+        'Address': 'Address',
+        'Region': 'Region',
+        'Building Staffing': 'Staff_Count',
+        'Internal Staff': 'Internal_Staff',
+        'Group1 Staff': 'Group1_Staff', 
+        'Group2 Staff': 'Group2_Staff'
+    }
+):
+    """
+    Define parameters for the heatmap visualization.
+    
+    This function sets up the configuration for the heatmap and stores it in a global variable
+    for use in the generate_heatmap function. This separation allows for easy modifications
+    to the data and visualization parameters without changing the core visualization logic.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        The dataset containing location and measure data
+    lat_col : str, default='Lat'
+        Column name containing latitude values
+    long_col : str, default='Long'
+        Column name containing longitude values
+    measure_cols : dict, default={'Staff Count': 'Staff_Count', 'Ticket Volume': 'Ticket_Volume', 'Call Volume': 'Call_Volume'}
+        Dictionary mapping feature group names to column names containing measure values
+    default_measure : str, default='Staff Count'
+        The default measure to display when the map is first loaded
+    marker_color_col : str, default='Internal_Staff'
+        Column name used to determine marker color
+    tooltip_cols : dict
+        Dictionary mapping tooltip labels to column names for marker tooltips
+    
+    Notes:
+    ------
+    To add additional feature groups:
+    1. Add new key-value pairs to the measure_cols dictionary
+       Example: To add 'Revenue' feature group:
+       measure_cols={'Staff Count': 'Staff_Count', ..., 'Revenue': 'Revenue_Column'}
+    
+    To modify tooltip content:
+    1. Add or remove key-value pairs from the tooltip_cols dictionary
+       Example: To add 'Manager' to tooltip:
+       tooltip_cols={'Building Name': 'Bldg_Name', ..., 'Manager': 'Manager_Column'}
+    
+    To change the marker color logic:
+    1. Change the marker_color_col parameter to the column that should determine color
+    2. Modify the generate_heatmap function's marker creation logic
+    
+    Advanced options that could be added:
+    1. color_scale: To customize the heatmap color gradient
+       Example: color_scale=['blue', 'green', 'yellow', 'red']
+    2. zoom_start: To set the initial zoom level
+       Example: zoom_start=5
+    3. tile_layer: To change the map background
+       Example: tile_layer='Stamen Terrain'
+    4. radius_factor: To adjust how radius scales with values
+       Example: radius_factor=0.1
+    """
+    global CONFIG
+    
+    # Convert string coordinates to float if necessary
+    if df[long_col].dtype == 'object':
+        df[long_col] = df[long_col].astype(float)
+    if df[lat_col].dtype == 'object':
+        df[lat_col] = df[lat_col].astype(float)
+    
+    # Convert measure columns to numeric if necessary
+    for _, col in measure_cols.items():
+        if df[col].dtype == 'object':
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    # Store configuration in global variable
+    CONFIG = {
+        'dataframe': df,
+        'lat_col': lat_col,
+        'long_col': long_col,
+        'measure_cols': measure_cols,
+        'default_measure': default_measure,
+        'marker_color_col': marker_color_col,
+        'tooltip_cols': tooltip_cols,
+        'center': [df[lat_col].mean(), df[long_col].mean()]
+    }
+    
+    return CONFIG
+
+
+def generate_heatmap(output_file='heatmap.html', radius_multiplier=1.0):
+    """
+    Generate a Folium heatmap with markers based on the configuration set by define_heatmap_parameters.
+    
+    This function creates a Folium map with heatmap layers for each measure defined in CONFIG['measure_cols'],
+    adds markers at each point with tooltips showing location details, and exports the map as an HTML file.
+    
+    Parameters:
+    -----------
+    output_file : str, default='heatmap.html'
+        Filename for the exported HTML map
+    radius_multiplier : float, default=1.0
+        Factor to adjust the radius of heatmap points
+        
+    Returns:
+    --------
+    folium.Map
+        The generated Folium map object
+    
+    Notes:
+    ------
+    This function relies on the global CONFIG variable set by define_heatmap_parameters.
+    The heatmap radius scales with the measure value, providing visual indication of magnitude.
+    Markers are colored red if Internal_Staff = 0, blue otherwise.
+    """
+    global CONFIG
+    
+    if not CONFIG:
+        raise ValueError("Configuration not set. Call define_heatmap_parameters first.")
+    
+    # Extract configuration
+    df = CONFIG['dataframe']
+    lat_col = CONFIG['lat_col']
+    long_col = CONFIG['long_col']
+    measure_cols = CONFIG['measure_cols']
+    default_measure = CONFIG['default_measure']
+    center = CONFIG['center']
+    
+    # Create base map
+    m = folium.Map(location=center, zoom_start=10)
+    
+    # Add feature groups for each measure
+    feature_groups = {}
+    
+    for group_name, measure_col in measure_cols.items():
+        fg = folium.FeatureGroup(name=group_name)
+        
+        # Create heatmap data
+        heat_data = []
+        for _, row in df.iterrows():
+            # Each heatmap point is [lat, lon, intensity]
+            # Scale radius with the measure value 
+            value = float(row[measure_col])
+            radius = max(5, min(50, value / 100 * radius_multiplier))  # Scale radius between 5-50 based on value
+            heat_data.append([row[lat_col], row[long_col], value, radius])
+        
+        # Add heatmap to feature group
+        HeatMap(
+            data=heat_data,
+            radius=15,
+            max_zoom=13,
+            gradient={0.4: 'blue', 0.65: 'lime', 0.8: 'yellow', 1: 'red'},
+            blur=10,
+            use_local_extrema=True
+        ).add_to(fg)
+        
+        feature_groups[group_name] = fg
+        fg.add_to(m)
+    
+    # Add markers for each location
+    for _, row in df.iterrows():
+        # Determine marker color based on Internal_Staff
+        try:
+            internal_staff = int(row.get(CONFIG['marker_color_col'], 0))
+            color = 'blue' if internal_staff > 0 else 'red'
+        except (ValueError, TypeError):
+            color = 'gray'  # Default if there's an issue with the value
+        
+        # Create tooltip content
+        tooltip_content = ""
+        for label, col in CONFIG['tooltip_cols'].items():
+            if col in row:
+                # Make some labels bold
+                if label in ['Building Name', 'Building Staffing']:
+                    tooltip_content += f"<strong>{label}: {row[col]}</strong><br>"
+                else:
+                    tooltip_content += f"{label}: {row[col]}<br>"
+        
+        # Add group-specific staff info
+        if 'Group1_Staff' in row and 'Group2_Staff' in row:
+            tooltip_content += f"{row.get('Group1_Staff', 0)} | {row.get('Group2_Staff', 0)}"
+        
+        # Create marker with tooltip
+        folium.Marker(
+            location=[row[lat_col], row[long_col]],
+            tooltip=folium.Tooltip(tooltip_content),
+            icon=folium.Icon(color=color)
+        ).add_to(m)
+    
+    # Add layer control
+    folium.LayerControl().add_to(m)
+    
+    # Save map to HTML file
+    m.save(output_file)
+    
+    return m
+
+
+# Example usage with the provided sample data
+if __name__ == "__main__":
+    # Convert sample data to DataFrame
+    sample_df = {
+        'Lat': [38.9072, 40.7128, 34.0549], 
+        'Long': ['77.0369', '74.006', '118.2426'], 
+        'Bldg_Name': ['DC-Reagan', 'Times_Square', 'LAX'], 
+        'Address': ['100 DC Road', '200 Times Square', '300 LAX Airport'], 
+        'Staff_Count': ['5', '600', '7000'], 
+        'Group1_Staff': ['2', '0', '0'], 
+        'Group2_Staff': ['0', '1', '0'], 
+        'Group3_Staff': ['25', '2', '0'], 
+        'Ticket_Volume': ['100', '500', '3000'], 
+        'Call_Volume': ['5000', '40', '200'], 
+        'Region': ['Mid-Atlantic', 'Northeast', 'Southwest'],
+        'Internal_Staff': ['1', '0', '0']  # Added for marker color logic
+    }
+    
+    df = pd.DataFrame(sample_df)
+    
+    # Define heatmap parameters
+    define_heatmap_parameters(
+        df=df,
+        lat_col='Lat',
+        long_col='Long',
+        measure_cols={
+            'Staff Count': 'Staff_Count',
+            'Ticket Volume': 'Ticket_Volume',
+            'Call Volume': 'Call_Volume'
+        },
+        default_measure='Staff Count',
+        marker_color_col='Internal_Staff',
+        tooltip_cols={
+            'Building Name': 'Bldg_Name',
+            'Address': 'Address',
+            'Region': 'Region',
+            'Building Staffing': 'Staff_Count',
+            'Internal Staff': 'Internal_Staff',
+            'Group1 Staff': 'Group1_Staff',
+            'Group2 Staff': 'Group2_Staff'
+        }
+    )
+    
+    # Generate and save the heatmap
+    map_object = generate_heatmap(output_file='location_heatmap.html')
