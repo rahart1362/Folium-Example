@@ -1,0 +1,228 @@
+# Import necessary libraries
+import folium
+from folium.plugins import HeatMap
+import pandas as pd
+import numpy as np
+
+# Global variables to store configuration
+CONFIG = {}
+
+def define_heatmap_parameters(
+    df, 
+    config_params=None
+):
+    """
+    Define parameters for the heatmap visualization.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        The dataset containing location and measure data
+    config_params : dict, optional
+        Dictionary containing custom configuration parameters.
+    """
+    global CONFIG
+    
+    # Set up default configuration
+    default_config = {
+        'lat_col': 'Lat',
+        'long_col': 'Long',
+        'measure_cols': {
+            'Staff Count': 'Staff_Count',
+            'Ticket Volume': 'Ticket_Volume',
+            'Call Volume': 'Call_Volume'
+        },
+        'default_measure': 'Staff Count',
+        'marker_color_col': 'Internal_Staff',
+        'tooltip_cols': {
+            'Building Name': 'Bldg_Name',
+            'Address': 'Address',
+            'Region': 'Region',
+            'Building Staffing': 'Staff_Count',
+            'Internal Staff': 'Internal_Staff',
+            'Group1 Staff': 'Group1_Staff', 
+            'Group2 Staff': 'Group2_Staff'
+        },
+        'zoom_start': 5,
+        'radius_multiplier': 1.0,
+        'bold_labels': ['Building Name', 'Building Staffing']
+    }
+    
+    # Update with user-provided configuration if available
+    if config_params:
+        for key, value in config_params.items():
+            if isinstance(value, dict) and key in default_config and isinstance(default_config[key], dict):
+                # For nested dictionaries, update instead of replace
+                default_config[key].update(value)
+            else:
+                default_config[key] = value
+    
+    # Make a copy of the dataframe to avoid modifying the original
+    df_copy = df.copy()
+    
+    # Convert string coordinates to float
+    df_copy[default_config['lat_col']] = pd.to_numeric(df_copy[default_config['lat_col']], errors='coerce')
+    df_copy[default_config['long_col']] = pd.to_numeric(df_copy[default_config['long_col']], errors='coerce')
+    
+    # Convert measure columns to numeric
+    for _, col in default_config['measure_cols'].items():
+        df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
+    
+    # Convert staff columns to numeric (for marker coloring)
+    df_copy['Internal_Staff'] = pd.to_numeric(df_copy['Internal_Staff'], errors='coerce')
+    if 'Group1_Staff' in df_copy.columns:
+        df_copy['Group1_Staff'] = pd.to_numeric(df_copy['Group1_Staff'], errors='coerce')
+    if 'Group2_Staff' in df_copy.columns:
+        df_copy['Group2_Staff'] = pd.to_numeric(df_copy['Group2_Staff'], errors='coerce')
+    
+    # Calculate map center
+    center = [df_copy[default_config['lat_col']].mean(), df_copy[default_config['long_col']].mean()]
+    
+    # Debug information
+    print(f"Latitude range: {df_copy[default_config['lat_col']].min()} to {df_copy[default_config['lat_col']].max()}")
+    print(f"Longitude range: {df_copy[default_config['long_col']].min()} to {df_copy[default_config['long_col']].max()}")
+    for measure, col in default_config['measure_cols'].items():
+        print(f"{measure} range: {df_copy[col].min()} to {df_copy[col].max()}")
+    print(f"Map center set to: {center}")
+    
+    # Store combined configuration in global variable
+    CONFIG = default_config.copy()
+    CONFIG['dataframe'] = df_copy
+    CONFIG['center'] = center
+    
+    return CONFIG
+
+
+def generate_heatmap(output_file='heatmap.html'):
+    """
+    Generate a Folium heatmap with markers based on the configuration set by define_heatmap_parameters.
+    
+    Parameters:
+    -----------
+    output_file : str, default='heatmap.html'
+        Filename for the exported HTML map
+        
+    Returns:
+    --------
+    folium.Map
+        The generated Folium map object
+    """
+    global CONFIG
+    
+    if not CONFIG:
+        raise ValueError("Configuration not set. Call define_heatmap_parameters first.")
+    
+    # Extract configuration
+    df = CONFIG['dataframe']
+    lat_col = CONFIG['lat_col']
+    long_col = CONFIG['long_col']
+    measure_cols = CONFIG['measure_cols']
+    default_measure = CONFIG['default_measure']
+    center = CONFIG['center']
+    zoom_start = CONFIG.get('zoom_start', 5)
+    tooltip_cols = CONFIG['tooltip_cols']
+    bold_labels = CONFIG.get('bold_labels', [])
+    
+    # Create base map
+    m = folium.Map(location=center, zoom_start=zoom_start)
+    
+    # Add feature groups for each measure
+    for group_name, measure_col in measure_cols.items():
+        fg = folium.FeatureGroup(name=group_name)
+        
+        # Prepare data for heatmap
+        heat_data = []
+        for _, row in df.iterrows():
+            # Skip rows with missing coordinates or measure values
+            if pd.isna(row[lat_col]) or pd.isna(row[long_col]) or pd.isna(row[measure_col]):
+                continue
+                
+            heat_data.append([
+                float(row[lat_col]), 
+                float(row[long_col]), 
+                float(row[measure_col])
+            ])
+        
+        # Add heatmap to feature group
+        HeatMap(
+            heat_data,
+            radius=15,
+            max_zoom=13,
+            blur=10
+        ).add_to(fg)
+        
+        # Add feature group to map
+        fg.add_to(m)
+    
+    # Add markers for each location
+    for _, row in df.iterrows():
+        # Skip rows with missing coordinates
+        if pd.isna(row[lat_col]) or pd.isna(row[long_col]):
+            continue
+            
+        # Determine marker color based on Internal_Staff
+        color = 'red' if row['Internal_Staff'] == 0 else 'blue'
+        
+        # Create tooltip content directly here instead of using a separate function
+        tooltip_content = ""
+        
+        # Add tooltip labels and values from CONFIG
+        for label, col in tooltip_cols.items():
+            if col in row.index:
+                value = row[col]
+                
+                # Make some labels bold based on CONFIG
+                if label in bold_labels:
+                    tooltip_content += f"<strong>{label}: {value}</strong><br>"
+                else:
+                    tooltip_content += f"{label}: {value}<br>"
+        
+        # Add group-specific staff info if available
+        if 'Group1_Staff' in row.index and 'Group2_Staff' in row.index:
+            tooltip_content += f"{row['Group1_Staff']} | {row['Group2_Staff']}"
+        
+        # Create marker with tooltip
+        folium.Marker(
+            location=[float(row[lat_col]), float(row[long_col])],
+            tooltip=folium.Tooltip(tooltip_content),
+            icon=folium.Icon(color=color)
+        ).add_to(m)
+    
+    # Add layer control
+    folium.LayerControl().add_to(m)
+    
+    # Save map to HTML file
+    m.save(output_file)
+    print(f"Map saved to {output_file}")
+    
+    return m
+
+
+# Example usage
+if __name__ == "__main__":
+    # Sample data dictionary
+    sample_df = {
+        'Lat': [38.9072, 40.7128, 34.0549], 
+        'Long': [-77.0369, -74.006, -118.2426],
+        'Bldg_Name': ['DC-Reagan', 'Times_Square', 'LAX'], 
+        'Address': ['100 DC Road', '200 Times Square', '300 LAX Airport'], 
+        'Staff_Count': [5, 600, 7000],
+        'Group1_Staff': [2, 0, 0], 
+        'Group2_Staff': [0, 1, 0], 
+        'Group3_Staff': [25, 2, 0], 
+        'Ticket_Volume': [100, 500, 3000], 
+        'Call_Volume': [5000, 40, 200], 
+        'Region': ['Mid-Atlantic', 'Northeast', 'Southwest'],
+        'Internal_Staff': [1, 1, 0]
+    }
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(sample_df)
+    
+    # Define heatmap parameters
+    define_heatmap_parameters(df=df)
+    
+    # Generate and save the heatmap
+    map_object = generate_heatmap(output_file='location_heatmap.html')
+    
+    print("Done! Open location_heatmap.html in your browser to view the map.")
