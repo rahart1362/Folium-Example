@@ -3,6 +3,7 @@ import folium
 from folium.plugins import HeatMap
 import pandas as pd
 import numpy as np
+import openpyxl
 
 # Global variables to store configuration
 CONFIG = {}
@@ -28,20 +29,24 @@ def define_heatmap_parameters(
         'lat_col': 'Lat',
         'long_col': 'Long',
         'measure_cols': {
-            'Staff Count': 'Staff_Count',
+            'Building Staff': 'POD Total',
             'Ticket Volume': 'Ticket_Volume',
             'Call Volume': 'Call_Volume'
         },
         'default_measure': 'Staff Count',
         'marker_color_col': 'Internal_Staff',
         'tooltip_cols': {
-            'Building Name': 'Bldg_Name',
-            'Address': 'Address',
-            'Region': 'Region',
-            'Building Staffing': 'Staff_Count',
-            'Internal Staff': 'Internal_Staff',
-            'Group1 Staff': 'Group1_Staff', 
-            'Group2 Staff': 'Group2_Staff'
+            'Building Name': 'BUILDING NAME',
+            'Address': 'Address_String',
+            #'Region': 'Region',
+            'Building Staffing': 'POD Total',
+            'UNS Staff': 'UNS',
+            'EFO Staff': 'EFO', 
+            'CSS Staff': 'CSS',
+            'OSS Staff': 'OSS',
+            'UC Staff': 'UC', 
+            'SP&I Staff': 'SP&I',
+            'CCSD Staff': 'CCSD'
         },
         'zoom_start': 5,
         'radius_multiplier': 1.0,
@@ -69,11 +74,19 @@ def define_heatmap_parameters(
         df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
     
     # Convert staff columns to numeric (for marker coloring)
-    df_copy['Internal_Staff'] = pd.to_numeric(df_copy['Internal_Staff'], errors='coerce')
-    if 'Group1_Staff' in df_copy.columns:
-        df_copy['Group1_Staff'] = pd.to_numeric(df_copy['Group1_Staff'], errors='coerce')
-    if 'Group2_Staff' in df_copy.columns:
-        df_copy['Group2_Staff'] = pd.to_numeric(df_copy['Group2_Staff'], errors='coerce')
+    df_copy['UNS'] = pd.to_numeric(df_copy['UNS'], errors='coerce')
+    if 'EFO' in df_copy.columns:
+        df_copy['EFO'] = pd.to_numeric(df_copy['EFO'], errors='coerce')
+    if 'CSS' in df_copy.columns:
+        df_copy['CSS'] = pd.to_numeric(df_copy['CSS'], errors='coerce')
+    if 'OSS' in df_copy.columns:
+        df_copy['OSS'] = pd.to_numeric(df_copy['OSS'], errors='coerce')
+    if 'UC' in df_copy.columns:
+        df_copy['UC'] = pd.to_numeric(df_copy['UC'], errors='coerce')
+    if 'SP&I' in df_copy.columns:
+        df_copy['SP&I'] = pd.to_numeric(df_copy['SP&I'], errors='coerce')
+    if 'CCSD' in df_copy.columns:
+        df_copy['CCSD'] = pd.to_numeric(df_copy['CCSD'], errors='coerce')
     
     # Calculate map center
     center = [df_copy[default_config['lat_col']].mean(), df_copy[default_config['long_col']].mean()]
@@ -161,7 +174,7 @@ def generate_heatmap(output_file='heatmap.html'):
             continue
             
         # Determine marker color based on Internal_Staff
-        color = 'red' if row['Internal_Staff'] == 0 else 'blue'
+        color = 'red' if row['UNS'] == 0 else 'blue'
         
         # Create tooltip content directly here instead of using a separate function
         tooltip_content = ""
@@ -176,11 +189,11 @@ def generate_heatmap(output_file='heatmap.html'):
                     tooltip_content += f"<strong>{label}: {value}</strong><br>"
                 else:
                     tooltip_content += f"{label}: {value}<br>"
-        
+       
         # Add group-specific staff info if available
-        if 'Group1_Staff' in row.index and 'Group2_Staff' in row.index:
-            tooltip_content += f"{row['Group1_Staff']} | {row['Group2_Staff']}"
-        
+        #if 'EFO' in row.index and 'CSS' in row.index:
+            #tooltip_content += f"{row['EFO']} | {row['CSS']}"
+       
         # Create marker with tooltip
         folium.Marker(
             location=[float(row[lat_col]), float(row[long_col])],
@@ -200,29 +213,19 @@ def generate_heatmap(output_file='heatmap.html'):
 
 # Example usage
 if __name__ == "__main__":
-    # Sample data dictionary
-    sample_df = {
-        'Lat': [38.9072, 40.7128, 34.0549], 
-        'Long': [-77.0369, -74.006, -118.2426],
-        'Bldg_Name': ['DC-Reagan', 'Times_Square', 'LAX'], 
-        'Address': ['100 DC Road', '200 Times Square', '300 LAX Airport'], 
-        'Staff_Count': [5, 600, 7000],
-        'Group1_Staff': [2, 0, 0], 
-        'Group2_Staff': [0, 1, 0], 
-        'Group3_Staff': [25, 2, 0], 
-        'Ticket_Volume': [100, 500, 3000], 
-        'Call_Volume': [5000, 40, 200], 
-        'Region': ['Mid-Atlantic', 'Northeast', 'Southwest'],
-        'Internal_Staff': [1, 1, 0]
-    }
-    
-    # Convert to DataFrame
-    df = pd.DataFrame(sample_df)
+
+    # Specify the file path
+    file_path = "/home/mgfwb/Data Files/POD-Mapping_clean.xlsx"
+
+    # Read the Excel file
+    # - file_path: The path to the Excel file
+    # - engine='openpyxl': Specifies the engine to use for reading .xlsx files
+    df = pd.read_excel(file_path, engine='openpyxl')
     
     # Define heatmap parameters
     define_heatmap_parameters(df=df)
     
     # Generate and save the heatmap
-    map_object = generate_heatmap(output_file='location_heatmap.html')
+    map_object = generate_heatmap(output_file='location_heatmap_v5.html')
     
     print("Done! Open location_heatmap.html in your browser to view the map.")
