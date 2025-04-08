@@ -33,8 +33,8 @@ def define_heatmap_parameters(
             'Ticket Volume': 'Ticket_Volume',
             'Call Volume': 'Call_Volume'
         },
-        'default_measure': 'Staff Count',
-        'marker_color_col': 'Internal_Staff',
+        'default_measure': 'POD Total',
+        'marker_color_col': 'UNS',
         'tooltip_cols': {
             'Building Name': 'BUILDING NAME',
             'Address': 'Address_String',
