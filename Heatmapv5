@@ -30,8 +30,8 @@ def define_heatmap_parameters(
         'long_col': 'Long',
         'measure_cols': {
             'Building Staff': 'POD Total',
-            'Ticket Volume': 'Ticket_Volume',
-            'Call Volume': 'Call_Volume'
+            'SAMPLE_Ticket Volume': 'Ticket_Volume',
+            'SAMPLE_Call Volume': 'Call_Volume'
         },
         'default_measure': 'POD Total',
         'marker_color_col': 'UNS',
@@ -167,6 +167,11 @@ def generate_heatmap(output_file='heatmap.html'):
         # Add feature group to map
         fg.add_to(m)
     
+    
+    # Sort the dataframe by the default measures
+    # This will make the markers with the higher values appear on top when zoomed out
+    sorted_df = df.sort_values(by=measure_cols['POD Total'], ascending=True)
+    
     # Add markers for each location
     for _, row in df.iterrows():
         # Skip rows with missing coordinates
@@ -226,6 +231,6 @@ if __name__ == "__main__":
     define_heatmap_parameters(df=df)
     
     # Generate and save the heatmap
-    map_object = generate_heatmap(output_file='location_heatmap_v5.html')
+    map_object = generate_heatmap(output_file='location_heatmap_v6.html')
     
     print("Done! Open location_heatmap.html in your browser to view the map.")
