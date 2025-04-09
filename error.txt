@@ -1,0 +1,4 @@
+  Cell In[11], line 222
+    icon_size=[int(20 * scale_percent), int(20 * scale percent)],
+                                            ^
+SyntaxError: invalid syntax. Perhaps you forgot a comma?
