@@ -50,7 +50,17 @@ def define_heatmap_parameters(
         },
         'zoom_start': 5,
         'radius_multiplier': 1.0,
-        'bold_labels': ['Building Name', 'Building Staffing']
+        'bold_labels': ['Building Name', 'Building Staffing'],
+        'marker_style': {
+            #'type': 'div_icon', #Options: 'default', 'div_icon', 'circle'
+            #'size': 12,  # Size in pixels (default markers are around 20px)
+            'border_color': '#000000',
+            'border_width': 1
+        },
+        'marker_config': {
+            'scale_percent': 60, # 60% of default size
+            'custom_icon': False # Whhether to use a custom icon or scale the default
+        }
     }
     
     # Update with user-provided configuration if available
@@ -135,6 +145,10 @@ def generate_heatmap(output_file='heatmap.html'):
     zoom_start = CONFIG.get('zoom_start', 5)
     tooltip_cols = CONFIG['tooltip_cols']
     bold_labels = CONFIG.get('bold_labels', [])
+    marker_config = CONFIG.get('marker_config', {})
+    scale_percent = marker_config.get('scale_percent', 100) / 100 #Convert to decimal
+    use_custom_icon = marker_config.get('custom_icon', False)
+
     
     # Create base map
     m = folium.Map(location=center, zoom_start=zoom_start)
@@ -170,7 +184,7 @@ def generate_heatmap(output_file='heatmap.html'):
     
     # Sort the dataframe by the default measures
     # This will make the markers with the higher values appear on top when zoomed out
-    sorted_df = df.sort_values(by=measure_cols['POD Total'], ascending=True)
+    sorted_df = df.sort_values(by=measure_cols['Building Staff'], ascending=True)
     
     # Add markers for each location
     for _, row in df.iterrows():
@@ -199,11 +213,39 @@ def generate_heatmap(output_file='heatmap.html'):
         #if 'EFO' in row.index and 'CSS' in row.index:
             #tooltip_content += f"{row['EFO']} | {row['CSS']}"
        
+        if use_custom_icon:
+            # Use FontAwesome with a size that scales
+            icon = folium.Icon(
+                color=color,
+                icon='map-marker', # Using FontAwesome icon
+                prefix='fa',
+                icon_size=[int(20 * scale_percent), int(20 * scale percent)],
+                icon_anchor=[int(10 * scale_percent), int(20 * scale_percent)]
+            )
+        else:
+            icon_html = f'''
+                <div sttyle='font-size: 1rem; transform: scale({scale_percent});">
+                    <i class="fa fa-map-marker" style="color: {color};"</i>
+                </div>
+            '''
+            icon = folium.DivIcon(
+                html=icon_html,
+                icon_size=[int(20 * scale_percent), int(20 * scale percent)],
+                icon_anchor=[int(10 * scale_percent), int(20 * scale_percent)]
+            )
+    
         # Create marker with tooltip
         folium.Marker(
             location=[float(row[lat_col]), float(row[long_col])],
             tooltip=folium.Tooltip(tooltip_content),
-            icon=folium.Icon(color=color)
+            icon=icon
+            '''
+            icon=folium.Icon(
+                color=color,
+                icon_size=marker_config.get('icon_size', [25, 41]), # Use config or default
+                icon_anchor=marker_config.get('icon_anchor', [12, 41]) # Use config or default
+            )
+            '''
         ).add_to(m)
     
     # Add layer control
